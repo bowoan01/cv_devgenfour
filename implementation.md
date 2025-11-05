@@ -1,11 +1,11 @@
-# Devgenfour Company Profile – Implementation Plan
+# Devgenfour Company Profile – Implementation Plan (Revised: Single `web.php`, No Prefix, No Blade Components)
 
 ## 1. Scope Recap & Approach
 
-* Build a **company profile website** (Home, About, Services, Portfolio, Contact; Blog = Phase 2) along with a **custom admin panel** for content management.
+* Build a **company profile website** (Home, About, Services, Portfolio, Contact; Blog = Phase 2) plus a **custom admin panel** for content management.
 * Stack: **Laravel 12 (PHP 8.3+)**, **MySQL 8+ / PostgreSQL 18+**, **Bootstrap 5**, **Vanilla JS**, **jQuery AJAX**, **Yajra DataTables**, **Spatie Permission**, **Laravel Breeze**.
-* No Vite / Node — all assets are loaded via **CDN** to prevent build errors.
-* Focus: responsive design, high performance, strong security, and strict separation between public and admin areas.
+* **No Vite/Node** — all assets are loaded via **CDN** to avoid build errors.
+* Focus: responsive design, high performance, strong security, and clear separation of public vs. admin functionality (via middleware and route names).
 
 ---
 
@@ -24,7 +24,7 @@ MySQL 8+ / PostgreSQL 18+ (Eloquent ORM + Spatie Roles/Permissions)
 ```
 
 * Public controllers render Blade views using Bootstrap and cached data.
-* Admin routes (`/admin`) run through `auth`, `verified`, and `role/permission` middleware, exposing **AJAX JSON** endpoints.
+* Admin actions are guarded by `auth`, `verified`, and `role/permission` middleware; endpoints return **AJAX JSON** for CRUD/DataTables.
 * Queues handle email and media jobs; a scheduler manages sitemap generation and cleanup tasks.
 * Storage uses the `public` disk or AWS S3 (via `storage:link`).
 
@@ -77,58 +77,108 @@ MySQL 8+ / PostgreSQL 18+ (Eloquent ORM + Spatie Roles/Permissions)
 
 ---
 
-## 5. Routing & Controllers
+## 5. Routing & Controllers (Single `routes/web.php`, No Prefix)
 
-**Public (`routes/web.php`)**
+All routes live in **`routes/web.php`**. Use **middleware groups** (no URL prefix) and **clear route names** to separate public vs. admin.
 
-```
-GET /                → HomeController@index
-GET /about           → AboutController@index
-GET /services        → ServiceController@index
-GET /services/{slug} → ServiceController@show
-GET /portfolio       → PortfolioController@index
-GET /portfolio/{slug}→ PortfolioController@show
-GET /contact         → ContactController@show
-POST /contact        → ContactController@submit
-```
+**Public routes**
 
-**Admin (`routes/admin.php`, prefix `/admin`)**
-
-```
-GET /dashboard       → DashboardController@index
-resources: services, projects, teams
-contacts: index, show, markAsRead, delete
-profile: update, change-password
+```php
+// Public pages
+Route::get('/', [Site\HomeController::class, 'index'])->name('home');
+Route::get('/about', [Site\AboutController::class, 'index'])->name('about');
+Route::get('/services', [Site\ServiceController::class, 'index'])->name('services.index');
+Route::get('/services/{slug}', [Site\ServiceController::class, 'show'])->name('services.show');
+Route::get('/portfolio', [Site\PortfolioController::class, 'index'])->name('portfolio.index');
+Route::get('/portfolio/{slug}', [Site\PortfolioController::class, 'show'])->name('portfolio.show');
+Route::get('/contact', [Site\ContactController::class, 'show'])->name('contact.show');
+Route::post('/contact', [Site\ContactController::class, 'submit'])->name('contact.submit');
 ```
 
-Middleware: `web`, `auth`, `verified`, `role:Admin|Editor`.
-API routes (`routes/api.php`) only if needed; protect with `auth:sanctum`.
+**Admin routes (no prefix, protected by middleware)**
+
+```php
+Route::middleware(['auth','verified','role:Admin|Editor'])->group(function () {
+    // We keep namespaced controllers under App\Http\Controllers\Admin
+    Route::get('/dashboard', [Admin\DashboardController::class, 'index'])->name('admin.dashboard');
+
+    // Services
+    Route::get('/services/manage', [Admin\ServiceController::class, 'index'])->name('admin.services.index');
+    Route::post('/services', [Admin\ServiceController::class, 'store'])->name('admin.services.store');
+    Route::put('/services/{id}', [Admin\ServiceController::class, 'update'])->name('admin.services.update');
+    Route::delete('/services/{id}', [Admin\ServiceController::class, 'destroy'])->name('admin.services.destroy');
+
+    // Projects
+    Route::get('/projects/manage', [Admin\ProjectController::class, 'index'])->name('admin.projects.index');
+    Route::post('/projects', [Admin\ProjectController::class, 'store'])->name('admin.projects.store');
+    Route::put('/projects/{id}', [Admin\ProjectController::class, 'update'])->name('admin.projects.update');
+    Route::delete('/projects/{id}', [Admin\ProjectController::class, 'destroy'])->name('admin.projects.destroy');
+
+    // Project Images (nested behaviour without URL prefix)
+    Route::post('/projects/{id}/images', [Admin\ProjectImageController::class, 'store'])->name('admin.projects.images.store');
+    Route::delete('/projects/images/{imageId}', [Admin\ProjectImageController::class, 'destroy'])->name('admin.projects.images.destroy');
+    Route::put('/projects/{id}/reorder', [Admin\ProjectController::class, 'reorder'])->name('admin.projects.reorder');
+
+    // Teams
+    Route::get('/teams/manage', [Admin\TeamController::class, 'index'])->name('admin.teams.index');
+    Route::post('/teams', [Admin\TeamController::class, 'store'])->name('admin.teams.store');
+    Route::put('/teams/{id}', [Admin\TeamController::class, 'update'])->name('admin.teams.update');
+    Route::delete('/teams/{id}', [Admin\TeamController::class, 'destroy'])->name('admin.teams.destroy');
+
+    // Contacts
+    Route::get('/contacts', [Admin\ContactMessageController::class, 'index'])->name('admin.contacts.index');
+    Route::get('/contacts/{id}', [Admin\ContactMessageController::class, 'show'])->name('admin.contacts.show');
+    Route::patch('/contacts/{id}/read', [Admin\ContactMessageController::class, 'markAsRead'])->name('admin.contacts.read');
+    Route::delete('/contacts/{id}', [Admin\ContactMessageController::class, 'destroy'])->name('admin.contacts.destroy');
+
+    // Profile
+    Route::get('/profile', [Admin\ProfileController::class, 'edit'])->name('admin.profile.edit');
+    Route::put('/profile', [Admin\ProfileController::class, 'update'])->name('admin.profile.update');
+    Route::put('/profile/change-password', [Admin\ProfileController::class, 'changePassword'])->name('admin.profile.password');
+});
+```
+
+> Notes:
+>
+> * No **URL prefix** is used. Separation is enforced by **middleware** and **route names** (`admin.*`).
+> * Keep admin controllers under `App\Http\Controllers\Admin\*` for clarity, even though URLs have no prefix.
 
 ---
 
-## 6. Frontend Implementation
+## 6. Frontend Implementation (Plain Blade + Partials, No Components)
 
-* Main layouts: `layouts/app.blade.php` and `layouts/admin.blade.php`.
-* Use **Bootstrap 5 utilities** and Blade components (`x-card`, `x-form`, `x-alert`).
-* **Vanilla JS** for mobile navigation, form validation, and flash toasts.
-* **jQuery AJAX** for CRUD without page reloads, returning standard JSON responses:
+**Layouts**
 
-  ```json
-  { "success": true, "message": "Data saved", "data": { ... } }
-  ```
-* **Yajra DataTables** for server-side processing (pagination, filtering, sorting).
-* Optimizations: lazy-loaded images, font prefetching, and asynchronous analytics.
+* `resources/views/layouts/app.blade.php` — public layout
+* `resources/views/layouts/admin.blade.php` — admin layout
+* Use `@yield('title')`, `@yield('content')`, plus `@stack('styles')` / `@stack('scripts')`.
+
+**Partials**
+
+* `resources/views/partials/navbar.blade.php`
+* `resources/views/partials/footer.blade.php`
+* `resources/views/partials/flash.blade.php`
+
+**Per-page JS**
+
+* Push page-scoped scripts via `@push('scripts')` and render with `@stack('scripts')` in layouts.
+* Global helpers in `public/js/app.js` (CSRF setup, small utilities).
+
+**DataTables + AJAX**
+
+* Initialize DataTables on admin pages, server-side JSON endpoints as defined in routes.
+* AJAX forms return standard JSON and update tables/DOM without page reloads.
 
 ---
 
 ## 7. Admin Panel UX Details
 
-* Fixed sidebar and breadcrumb-based content area.
+* Fixed sidebar and breadcrumb content area.
 * DataTables with action buttons (edit/delete/publish).
 * CRUD forms via AJAX modals with FormRequest validation.
-* **Spatie Permission** controls visibility — `Editor` cannot delete or publish.
-* Image uploads with preview (FileReader) and drag-and-drop reordering (`PUT /reorder`).
-* Flash notifications via Vanilla JS, with `aria-live` accessibility support.
+* **Spatie Permission** controls visibility — `Editor` cannot delete/publish; `Admin` can.
+* Image uploads with preview (FileReader) and drag-and-drop reordering.
+* Flash notifications via Blade partial + Vanilla JS (`aria-live` for accessibility).
 
 ---
 
@@ -192,7 +242,7 @@ php artisan queue:work
 | --------------------- | -------- | ---------------------------------------- |
 | Research & Sitemap    | 1 week   | Sitemap & initial content                |
 | Wireframe & UI Design | 2 weeks  | Bootstrap mockups & admin UX             |
-| Development           | 4 weeks  | CRUD AJAX + DataTables + SEO + Analytics |
+| Development           | 4 weeks  | AJAX CRUD + DataTables + SEO + Analytics |
 | Testing & Launch      | 1 week   | QA, performance, final deployment        |
 
 ---
@@ -208,10 +258,15 @@ php artisan queue:work
 
 ---
 
-### ✅ Build Contract (CDN-Only)
+### ✅ Build Contract (CDN-Only, Single `web.php`, No Components, No Prefix)
 
-**No Node / Vite. Use the CDN assets listed above. Do not include Tailwind, Alpine, Webpack, Mix, or npm scripts.**
-All UI interactions must be implemented with Bootstrap 5 + jQuery AJAX + Vanilla JS.
-Follow the standard JSON response contract and server-side DataTables structure from controllers.
+* **All routes must be in `routes/web.php`**. **Do not** create additional route files.
+* **Do not use URL prefixes**. Separate admin/public via middleware and route names only.
+* **Do not use Blade Components** — use plain Blade layouts and `@include` partials.
+* **No Node/Vite**. Use the CDN assets listed above.
+* Do not include Tailwind, Alpine, Webpack, Mix, or npm scripts.
+* All UI interactions must be implemented with Bootstrap 5 + jQuery AJAX + Vanilla JS.
+* Load page-specific JS using `@push('scripts')` and `@stack('scripts')`.
+* Follow the standard JSON response contract and server-side DataTables structure from controllers.
 
 ---
