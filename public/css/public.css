@@ -1,0 +1,41 @@
+body {
+    font-family: 'Open Sans', sans-serif;
+    color: #1a1a1a;
+}
+
+.hero {
+    padding: 6rem 0;
+    background: linear-gradient(135deg, rgba(90, 179, 241, 0.15), rgba(90, 179, 241, 0));
+}
+
+.section-title {
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+}
+
+.value-card {
+    border-radius: 16px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease;
+}
+
+.value-card:hover {
+    transform: translateY(-4px);
+}
+
+.portfolio-card img {
+    border-radius: 12px;
+}
+
+.portfolio-card .badge {
+    background-color: #5ab3f1;
+}
+
+.contact-card {
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(90, 179, 241, 0.2);
+}
+
+footer a:hover {
+    color: #5ab3f1 !important;
+}

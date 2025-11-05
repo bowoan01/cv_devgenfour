@@ -1,0 +1,23 @@
+{
+    "name": "spatie/laravel-seo",
+    "description": "Lightweight SEO utilities for Laravel (internal build)",
+    "type": "library",
+    "license": "MIT",
+    "version": "1.0.0",
+    "autoload": {
+        "psr-4": {
+            "Spatie\\LaravelSeo\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Spatie\\LaravelSeo\\LaravelSeoServiceProvider"
+            ],
+            "aliases": {
+                "Seo": "Spatie\\LaravelSeo\\Facades\\Seo"
+            }
+        }
+    },
+    "minimum-stability": "stable"
+}
