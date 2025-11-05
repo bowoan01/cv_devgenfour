@@ -173,9 +173,6 @@ This website will serve as **Devgenfour’s digital identity** — a professiona
 * Forgot password & reset via email
 * Session timeout after inactivity
 * **Role Management** using Spatie (Admin, Editor, Viewer)
-
-**Route prefix:** `/admin`
-
 ---
 
 ### 8.2 Dashboard
